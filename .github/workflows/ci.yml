@@ -46,3 +46,25 @@ jobs:
           context: .
           push: true
           tags: srini9808/docker-django-devops:latest
+      - name: Deploy to AWS EC2
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" << 'EOF'
+            docker pull srini9808/docker-django-devops:latest
+            docker stop django-devops-container || true
+            docker rm django-devops-container || true
+            docker run -d \
+              --name django-devops-container \
+              -p 8000:8000 \
+              srini9808/docker-django-devops:latest
+          EOF
